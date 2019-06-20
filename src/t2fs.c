@@ -150,7 +150,7 @@ int format2 (int sectors_per_block) {
 
 	int teste2 = writeBlock((BYTE*) entradas,superblock.blocoDirRaiz,superblock.blocoDirRaiz,sectors_per_block);
 
-	if(teste ==1 && teste2 ==1){
+	if(teste ==0 && teste2 ==0){
 		return SUCESSO;
 	}
 	else{
