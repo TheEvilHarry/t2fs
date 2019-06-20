@@ -1134,3 +1134,133 @@ int freeHandle(){
 	}
 	return ERRO;
 }
+
+char * read_cluster(int clusterNumber){
+    char* cluster = malloc(clusterSize);
+    BYTE readBuffer[SECTOR_SIZE];
+     int dataSectorStart = superbloco.setoresPorBloco *superbloco.blocoDirRaiz;
+
+    int i;
+    for (i = 0; i < superbloco.setoresPorBloco; i++) {
+        int adds = dataSectorStart + (clusterNumber *  superbloco.setoresPorBloco);
+        if (read_sector((adds + i), readBuffer) != 0) {
+          printf("Error reading cluster %d\n", (adds + i));
+          return NULL;
+        }
+        memcpy((cluster + (SECTOR_SIZE * i)), readBuffer, SECTOR_SIZE);
+    }
+
+    return cluster;
+}
+
+
+
+int write_cluster(BYTE *buffer, int clusterNumber) {
+  int i;
+  BYTE buffer_escrita[SECTOR_SIZE];
+  int dataSectorStart = superbloco.setoresPorBloco *superbloco.blocoDirRaiz;
+  memset(buffer_escrita, '\0', SECTOR_SIZE);
+
+  for(i = 0; i < superbloco.setoresPorBloco; i++) {
+    int adds = dataSectorStart+ (clusterNumber *  superbloco.setoresPorBloco);
+    memcpy(buffer_escrita, (buffer + (SECTOR_SIZE * i)), SECTOR_SIZE);
+    if (write_sector((adds + i), buffer_escrita) != 0) {
+      return ERRO;
+    }
+  }
+
+  return SUCESSO;
+}
+
+
+
+
+void consertar_caminho(char *path) {
+  char originalPath[MAX_OPEN_FILES + 1];
+  strcpy(originalPath, path);
+
+  *path = '\0';
+  char *token, *c;
+
+  token = strtok(originalPath, "/");
+
+  while(token != NULL) {
+    if (strcmp(token, "..") == 0) {
+      c = strrchr(path, '/');
+      if (c != NULL) {
+        *c = '\0';
+      }
+    }
+    else if (strcmp(token, "") != 0 && strcmp(token, ".") != 0) {
+      strcat(path, "/");
+      strcat(path, token);
+    }
+
+    token = strtok(NULL, "/");
+  }
+
+  strcat(path, "/");
+}
+
+
+
+unsigned int criar_arquivo(char * filename, int fileType)
+{
+    if (fileType < FILETYPE_DIR  || fileType > FILETYPE_LINK )   return ERRO; // tipo de arquvio inválido
+    
+    t_entradaDir* diret = getLastDirectory(filename);
+
+    char *nome = fileName(filename);
+
+    int i;
+    for (i = 0; i < entradasPorDir; i++) {
+	    if (strncmp(nome, diret[i].name, strlen(nome)) == 0) return ERRO; // erro ao criar o arquivo
+	    }
+    }
+
+    i = 0;
+    while (diret[i].fileType != FILETYPE_INV ) {
+    	i++;
+    }
+    if (i > entradasPorDir) return ERRO; //diretório já está cheio
+
+    
+    t_entradaDir arq_entrada;
+    arq_entrada.fileType = (BYTE ) fileType;
+    strcpy(arq_entrada.name, nome);
+    
+    frecord.bytesFileSize = clusterSize;
+    frecord.clustersFileSize = 1;
+    arq_entrada.firstBlock = proxIndiceLivreNaFAT();
+    fat[arq_entrada.firstBlock] = FAT_EOF;
+
+    diret[i] = arq_entrada; //escrever no disco
+
+    if (writeFAT() !=  SUCESSO) return ERRO; // erro ao escrever na FAT
+    if (write_cluster((BYTE *)diret, diret[0].firstBlock) != SUCESSO) return ERRO; 
+
+    return frecord.firstCluster;
+}
+
+
+DWORD proxIndiceLivreNaFAT() {
+    
+    short int completo = 0;
+    short int reset = 0;
+
+    DWORD start = indiceLivre_FAT;
+
+    while (fat[indiceLivre_FAT] != 0 && completo == 0)
+    {
+        if (indiceLivre_FAT == start && reset == 1) completo = 1;
+        if (indiceLivre_FAT == lastindex) {
+            indiceLivre_FAT = 0;
+            reset = 1;
+        }
+        indiceLivre_FAT += 1;
+    }
+    if (completo == 1) return ERRO;
+
+
+    return currentFreeFATIndex;
+}
