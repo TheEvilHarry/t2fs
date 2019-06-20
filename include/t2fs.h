@@ -61,6 +61,10 @@ typedef struct superbloco {
 #define FILETYPE_LINK 0x03
 
 
+#define NUM_MAX_ARQUIVOS_ABERTOS 10 //verificar quantos são
+#define ERRO_CRIACAO_ARQUIVO -5
+
+
 
 typedef struct directoryEntry {
     char    name[MAX_FILE_NAME_SIZE+1]; /* Nome do arquivo cuja entrada foi lida do disco      */
@@ -102,6 +106,12 @@ int validEntry(BYTE filetype);
 t_entradaDir* abrirArquivo(char* caminho);
 int freeHandle();
 
+
+char * read_cluster(int clusterNumber);
+int write_cluster(BYTE *buffer, int clusterNumber);
+unsigned int criar_arquivo(char * filename, int fileType);
+void consertar_caminho(char *path);
+DWORD proxIndiceLivreNaFAT(); //onde vai adicionar o novo arquivo
 
 
 /*-----------------------------------------------------------------------------
