@@ -1254,7 +1254,7 @@ int write_cluster(BYTE *buffer, int clusterNumber) {
 
 
 void consertar_caminho(char *path) {
-  char originalPath[MAX_OPEN_FILES + 1];
+  char originalPath[MAX_OPENEDF + 1];
   strcpy(originalPath, path);
 
   *path = '\0';
