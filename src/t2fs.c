@@ -13,13 +13,18 @@ int entradasPorDir; //Número máximo de entradas em um diretório
 int initialized = 0; //Flag para saber se estruturas do sistema foram carregadas do disco
 int entriesPerSector=0; //
 int tamBloco;
+int por_diretorio;
 int lastindex=0;
 int entradasPorSet;
+
+int tam_cluster; //cbb
 
 t_MBR mbr;
 t_SUPERBLOCO superbloco;
 DWORD* fat;
+DWORD indiceLivre_FAT;
 t_entradaDir* raiz;
+t_entradaDir* chdir;
 t_entradaDir* diretorioAtual;
 char caminhoAtual[MAX_FILE_NAME_SIZE+1];
 unsigned int bitmap[MAXBLOCOS];
@@ -320,7 +325,65 @@ Função:	Função usada para truncar um arquivo. Remove do arquivo
 		(current pointer), inclusive, até o seu final.
 -----------------------------------------------------------------------------*/
 int truncate2 (FILE2 handle) {
-	return -1;
+	initializeEverything();
+
+	if(filesMap[handle] == 0){
+		return ERRO;
+	}
+
+	t_entradaDir *diretorio = opened_files[handle].registro;
+	DWORD cluster_ler = diretorio->firstBlock;
+
+	int comeco = 0;
+
+	if(fat[cluster_ler] == FAT_BAD_CLUSTER ) return ERRO;
+
+	int pularClusters = opened_files[handle].currentPoint/tamBloco;
+	int i=0;
+	for(i=0; i<pularClusters;i++){
+		cluster_ler = fat[cluster_ler];
+		if(fat[cluster_ler] == FAT_BAD_CLUSTER) return ERRO;
+	}
+
+	comeco = opened_files[handle].currentPoint - tamBloco * pularClusters;
+	diretorio->fileSize = opened_files[handle].currentPoint;
+	////  rec->TAMANHOCLUSTER = pularClusters + 1;	
+
+
+	DWORD cluster_anterior;
+	while(cluster_ler ! FAT_EOF){
+		cluster_anterior = cluster_ler;
+		char *buffer = read_cluster(cluster_ler);
+		memset(buffer + comeco,'\0', tamBloco - comeco);
+		write_cluster((BYTE *) buffer, cluster_ler);
+		if(comeco == 0){
+			cluster_ler = fat[cluster_ler];
+			fat[cluster_anterior] = FAT_FREE_CLUSTER;
+		}
+		else {
+       		cluster_ler = fat[cluster_anterior];
+    	}
+    	comeco = 0;
+	}
+
+	if(cluster_ler = FAT_EOF){
+		char *buffer = read_cluster(cluster_ler);
+   		memset(buffer + comeco, '\0', clusterSize - comeco);
+
+	    write_cluster((BYTE *) buffer, cluster_ler);
+	    if(startByte == 0)
+	      	fat[cluster_ler] = FAT_FREE_CLUSTER;
+	    cluster_ler = fat[cluster_ler];
+	    comeco = 0;
+  
+	}
+
+
+	if (writeFAT() != SUCESSO) {
+     return ERRO;
+  }
+
+   return SUCESSO;
 }
 
 /*-----------------------------------------------------------------------------
@@ -556,7 +619,22 @@ Função:	Função usada para criar um caminho alternativo (softlink) com
 		arquivo ou diretório fornecido por filename.
 -----------------------------------------------------------------------------*/
 int ln2 (char *linkname, char *filename) {
-	return -1;
+	initializeEverything();
+
+    t_entradaDir * origem_arquivo;
+
+    if ( (origem_arquivo = abrirArquivo(filename)) == NULL) return ERRO; // Não conseguiu abrir
+    if ( origem_arquivo->fileType != FILETYPE_ARQ  && origem_arquivo->fileType != FILETYPE_DIR )return ERRO; // não é arquivo e não é diretório
+    if ( strlen(filename) > tamBloco) return ERRO;
+	if (strlen(linkname) > MAX_FILE_NAME_SIZE)return ERRO;
+    
+    unsigned int arq = criar_arquivo(linkname, FILETYPE_LINK );
+
+    if (arq == ERRO_CRIACAO_ARQUIVO) return ERRO;
+ 
+    write_cluster( (BYTE *)filename, arq);
+
+    return SUCESSO;
 }
 
 
