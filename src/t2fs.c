@@ -420,7 +420,7 @@ int mkdir2 (char *pathname) {
 	char *nome = fileName(pathname);
 
 	//Checa se o diretório já existe:
-	for(i=0; 0<entradasPorDir; i++){
+	for(i=0; i<entradasPorDir; i++){
 		if(strncmp(nome,diretorio[i].name, strlen(nome)) ==0 ){
 			printf("Diretório já existe\n");
 			return ERRO;
@@ -892,7 +892,7 @@ t_entradaDir* getLastDirectory(char* caminho){
 		}
 		else{
 
-			while(strncpy(diretorio[i].name, tokenAtual, strlen(tokenAtual) ) !=0 && i<entradasPorDir){
+			while(strncmp(diretorio[i].name, tokenAtual, strlen(tokenAtual) ) !=0 && i<entradasPorDir){
 				i++;
 			}
 			achou=1;
@@ -965,11 +965,12 @@ char * readBlock(int numBloco){
 
 char *fileName(char *caminho){
 	
-	char *nome = strdup(caminho); //duplica caminho recebido e guarda em nome
+	char *nome = (char*) malloc(sizeof(char) * strlen(caminho) + 1);
+	strncpy(nome, caminho, strlen(caminho) + 1); //duplica caminho recebido e guarda em nome
 	char *token = strtok(nome,"/");
 
 	while(token!=NULL){
-		nome=strdup(token);
+		strncpy(nome, token, strlen(token) + 1);
 		token=strtok(NULL,"/");
 
 		if(token==NULL){
