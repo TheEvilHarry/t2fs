@@ -461,6 +461,9 @@ int mkdir2 (char *pathname) {
 	}
 	updatesBitmap();
 
+	if(writeBlock((BYTE*) listaDeEntradas, listaDeEntradas[0].firstBlock, superbloco.blocoDirRaiz,superbloco.setoresPorBloco ) != SUCESSO  ){
+		return ERRO;
+	}
 
 	t_entradaDir itself;
 	char point[] = ".\0";
