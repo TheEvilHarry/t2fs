@@ -60,8 +60,6 @@ typedef struct superbloco {
 #define FEOF 0xFFFFFFFF 
 #define FILETYPE_LINK 0x03
 
-
-#define NUM_MAX_ARQUIVOS_ABERTOS 10 //verificar quantos são
 #define ERRO_CRIACAO_ARQUIVO -5
 
 
