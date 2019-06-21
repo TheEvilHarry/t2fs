@@ -223,7 +223,7 @@ FILE2 create2 (char *filename) {
 	}
 
 	printf("Arquivo criado corretamente!\n");
-	return SUCESSO;
+	return handle;
 
 
 }
@@ -274,7 +274,7 @@ FILE2 open2 (char *filename) {
 	openedFiles[handle] = arquivoAberto;
 	filesMap[handle] = 1;
 
-	return SUCESSO;
+	return handle;
 
 }
 
@@ -450,7 +450,11 @@ int mkdir2 (char *pathname) {
 	}
 	updatesBitmap();
 
+<<<<<<< HEAD
 	if(writeBlock((BYTE*) diretorio, diretorio[0].firstBlock, superbloco.blocoDirRaiz,superbloco.setoresPorBloco ) != SUCESSO  ){
+=======
+	if(writeBlock((BYTE*) listaDeEntradas, listaDeEntradas[0].firstBlock, superbloco.blocoDirRaiz,superbloco.setoresPorBloco ) != SUCESSO  ){
+>>>>>>> 7fa824b9a9be522f262d8a1f8e911f79ed7e4551
 		return ERRO;
 	}
 
