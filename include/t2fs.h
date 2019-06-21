@@ -1,11 +1,9 @@
 
-
 #ifndef __LIBT2FS___
 #define __LIBT2FS___
 
 #define	SECTOR_SIZE	256
 #define MAX_OPENEDF 10
-
 
 #define	INVALID_PTR	-1
 
@@ -27,7 +25,6 @@ typedef struct {
 } DIRENT2;
 
 #pragma pack(pop)
-
 
 #define SUPERBLOCKSECTOR 1
 #define FATSECTOR 2
@@ -59,10 +56,10 @@ typedef struct superbloco {
 
 #define FEOF 0xFFFFFFFF 
 #define FILETYPE_LINK 0x03
+#define FAT_FREE_BLOCK 0x00000000
+#define FAT_BAD_BLOCK 0xFFFFFFFE
 
 #define ERRO_CRIACAO_ARQUIVO -5
-
-
 
 typedef struct directoryEntry {
     char    name[MAX_FILE_NAME_SIZE+1]; /* Nome do arquivo cuja entrada foi lida do disco      */
@@ -78,9 +75,6 @@ typedef struct openedfile{
 	DWORD blocoPai;
 
 } t_openedFile;
-
-
-
 
 t_openedFile openedFiles[MAX_OPENEDF];
 int opened_files;
@@ -104,12 +98,9 @@ int validEntry(BYTE filetype);
 t_entradaDir* abrirArquivo(char* caminho);
 int freeHandle();
 
-
-char * read_cluster(int clusterNumber);
 int write_cluster(BYTE *buffer, int clusterNumber);
 unsigned int criar_arquivo(char * filename, int fileType);
 void consertar_caminho(char *path);
-DWORD proxIndiceLivreNaFAT(); //onde vai adicionar o novo arquivo
 
 
 /*-----------------------------------------------------------------------------

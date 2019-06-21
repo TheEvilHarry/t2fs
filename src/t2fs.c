@@ -29,9 +29,6 @@ t_entradaDir* diretorioAtual;
 char caminhoAtual[MAX_FILE_NAME_SIZE+1];
 unsigned int bitmap[MAXBLOCOS];
 
-
-
-
 /*-----------------------------------------------------------------------------
 Função:	Informa a identificação dos desenvolvedores do T2FS.
 -----------------------------------------------------------------------------*/
@@ -79,7 +76,6 @@ int format2 (int sectors_per_block) {
 		 superblock.bitmap[i] = 0;
 	 }
 
-
 	 //////CÁLCULO DO TAMANHO DA FAT :
 	 int fatBytes = 4 * superblock.numBlocos;		// FAT vai ser unsigned int = 4 bytes
 	 superblock.tamanhoFAT = fatBytes / SECTOR_SIZE;	//Tamanho da FAT em Setores
@@ -91,8 +87,6 @@ int format2 (int sectors_per_block) {
 	 }
 
 	 writeFAT();
-
-
 
 	 //No pior dos casos, FAT ocupa 8 setores (2 setores p/ bloco) e 2 blocos (TENTAR RESTRINGIR - Perguntar pro cechin)
 	 //se não puder fazer IF, diretório raiz então começa a partir do suposto bloco 4 = Setor 7 (posição fixa)
@@ -147,7 +141,7 @@ int format2 (int sectors_per_block) {
 	entradas[0].firstBlock = superblock.blocoDirRaiz;
 	entradas[0].fileType = FILETYPE_DIR;
 	entradas[0].fileSize = SECTOR_SIZE * sectors_per_block;
-
+	entradas[1] = entradas[0];
 
 	/* BYTE writingBuffer[SECTOR_SIZE*sectors_per_block]; // Tamanho bloco em bytes = tamanhosetor*setoresPorBloco
 
@@ -331,53 +325,49 @@ int truncate2 (FILE2 handle) {
 		return ERRO;
 	}
 
-	t_entradaDir *diretorio = opened_files[handle].registro;
+	t_entradaDir *diretorio = openedFiles[handle].registro; 
 	DWORD cluster_ler = diretorio->firstBlock;
+	
+	if(fat[cluster_ler] == FAT_BAD_BLOCK) return ERRO;
 
-	int comeco = 0;
-
-	if(fat[cluster_ler] == FAT_BAD_CLUSTER ) return ERRO;
-
-	int pularClusters = opened_files[handle].currentPoint/tamBloco;
+	int pularClusters = openedFiles[handle].currentPoint/tamBloco;
 	int i=0;
 	for(i=0; i<pularClusters;i++){
 		cluster_ler = fat[cluster_ler];
-		if(fat[cluster_ler] == FAT_BAD_CLUSTER) return ERRO;
+		if(fat[cluster_ler] == FAT_BAD_BLOCK) return ERRO;
 	}
 
-	comeco = opened_files[handle].currentPoint - tamBloco * pularClusters;
-	diretorio->fileSize = opened_files[handle].currentPoint;
+	int comecoByte = 0;	
+	comecoByte = openedFiles[handle].currentPoint - tamBloco * pularClusters;
+	diretorio->fileSize = openedFiles[handle].currentPoint;
 	////  rec->TAMANHOCLUSTER = pularClusters + 1;	
 
-
 	DWORD cluster_anterior;
-	while(cluster_ler ! FAT_EOF){
+	while(cluster_ler != FEOF){
 		cluster_anterior = cluster_ler;
-		char *buffer = read_cluster(cluster_ler);
-		memset(buffer + comeco,'\0', tamBloco - comeco);
+		char *buffer = readBlock(cluster_ler);
+		memset(buffer + comecoByte,'\0', tamBloco - comecoByte);
 		write_cluster((BYTE *) buffer, cluster_ler);
-		if(comeco == 0){
+		if(comecoByte == 0){
 			cluster_ler = fat[cluster_ler];
-			fat[cluster_anterior] = FAT_FREE_CLUSTER;
+			fat[cluster_anterior] = FAT_FREE_BLOCK;
 		}
 		else {
        		cluster_ler = fat[cluster_anterior];
     	}
-    	comeco = 0;
+    	comecoByte = 0;
 	}
 
-	if(cluster_ler = FAT_EOF){
-		char *buffer = read_cluster(cluster_ler);
-   		memset(buffer + comeco, '\0', clusterSize - comeco);
+	if(cluster_ler != FEOF){
+		char *buffer = readBlock(cluster_ler);
+   		memset(buffer + comecoByte, '\0', tamBloco - comecoByte);
 
 	    write_cluster((BYTE *) buffer, cluster_ler);
-	    if(startByte == 0)
-	      	fat[cluster_ler] = FAT_FREE_CLUSTER;
+	    if(comecoByte == 0)
+	      	fat[cluster_ler] = FAT_FREE_BLOCK;
 	    cluster_ler = fat[cluster_ler];
-	    comeco = 0;
-  
+	    comecoByte = 0;  
 	}
-
 
 	if (writeFAT() != SUCESSO) {
      return ERRO;
@@ -396,13 +386,12 @@ int seek2 (FILE2 handle, DWORD offset) {
 		return ERRO;
 	}
 
-	t_entradaDir *diretorio = opened_files[handle].registro;
+	t_entradaDir *diretorio = openedFiles[handle].registro;
 
 	if((int) offset > (int) diretorio->fileSize || (int) offset < -1) return ERRO;
 
-	if(offset == -1) opened_files[handle].currentPoint = diretorio->fileSize;
-	else opened_files[handle].currentPoint = offset;
-
+	if(offset == -1) openedFiles[handle].currentPoint = diretorio->fileSize;
+	else openedFiles[handle].currentPoint = offset;
 
 	return SUCESSO;
 }
@@ -420,7 +409,7 @@ int mkdir2 (char *pathname) {
 	char *nome = fileName(pathname);
 
 	//Checa se o diretório já existe:
-	for(i=0; 0<entradasPorDir; i++){
+	for(i=0; i<entradasPorDir; i++){
 		if(strncmp(nome,diretorio[i].name, strlen(nome)) ==0 ){
 			printf("Diretório já existe\n");
 			return ERRO;
@@ -461,6 +450,9 @@ int mkdir2 (char *pathname) {
 	}
 	updatesBitmap();
 
+	if(writeBlock((BYTE*) diretorio, diretorio[0].firstBlock, superbloco.blocoDirRaiz,superbloco.setoresPorBloco ) != SUCESSO  ){
+		return ERRO;
+	}
 
 	t_entradaDir itself;
 	char point[] = ".\0";
@@ -471,10 +463,19 @@ int mkdir2 (char *pathname) {
 	itself.fileSize = SECTOR_SIZE * superbloco.setoresPorBloco;
 	itself.firstBlock = novoDiretorio.firstBlock;
 
+	t_entradaDir parent;
+	parent.fileType = FILETYPE_DIR;
+	memset(parent.name, '\0', 51);
+	char parentChar[] = "..\0";
+	strcpy(parent.name, parentChar);
+	parent.fileSize = tamBloco;	
+	// points to the parent's firstCluster
+	parent.firstBlock = diretorio[0].firstBlock;
+
 	t_entradaDir *listaDeEntradas = malloc(SECTOR_SIZE * superbloco.setoresPorBloco);
 
 	listaDeEntradas[0]=itself;
-	//aqui estariamos gravando o pai
+	listaDeEntradas[1] = parent;
 
 	t_entradaDir vazio;
 	vazio.fileType=FILETYPE_INV;
@@ -494,15 +495,75 @@ int mkdir2 (char *pathname) {
 	printf("Diretório criado com sucesso\n");
 
 	return SUCESSO;
-
-
 }
 
 /*-----------------------------------------------------------------------------
 Função:	Função usada para remover (apagar) um diretório do disco.
 -----------------------------------------------------------------------------*/
 int rmdir2 (char *pathname) {
-	return -1;
+	initializeEverything();
+
+	char *name = fileName(pathname);
+  	t_entradaDir* ArqDir = getLastDirectory(pathname);
+
+	int i = 0;
+	// search for the dir to delete
+	while (strncmp(ArqDir[i].name, name, strlen(name)) != 0 && i < entradasPorDir) {
+		i++;
+	}
+
+	/**Sao considerados erros quaisquer situacoes que impecam a operacao.
+		Isso inclui:
+			(a) o diretorio a ser removido nao esta vazio;
+			(b) "pathname" nao existente;
+			(c) algum dos componentes do "pathname" n�o existe (caminho invalido);
+			(d) o "pathname" indicado nao eh um arquivo;
+	**/
+	// encontrou o diretório dentro do pai
+	if (i < entradasPorDir) {
+		// verifica se o diretório está vazio
+		t_entradaDir* dir = (t_entradaDir*) readBlock(ArqDir[i].firstBlock);
+				
+		for (int j = 2; j < entradasPorDir; j++) {
+			if (dir[j].fileType != FILETYPE_INV) {
+				printf("Diretório não está vazio!\n");
+				return ERRO;
+			}
+		}
+
+		// Cria variavel nula
+		t_entradaDir diretorioNulo;
+		diretorioNulo.fileType = FILETYPE_INV;
+		memset(diretorioNulo.name, '\0', 51);
+		diretorioNulo.fileSize = 0;
+		diretorioNulo.firstBlock = 0;
+
+		// invalida os registros
+		dir[0] = diretorioNulo;
+		dir[1] = diretorioNulo;
+
+		// atualiza os diretorios no cluster
+		if (write_cluster((BYTE *)dir, ArqDir[i].firstBlock) != SUCESSO) {
+			return ERRO;
+		}
+		
+		fat[ArqDir[i].firstBlock] = FAT_FREE_BLOCK;		
+		ArqDir[i] = diretorioNulo;
+		
+		if (writeFAT() != SUCESSO) {
+			return ERRO;
+		}
+		
+		if (write_cluster((BYTE *)ArqDir, ArqDir[0].firstBlock) != SUCESSO) {
+			return ERRO;
+		}
+	}
+	else{
+		printf("Diretório não existe.\n");
+		return ERRO;
+	}
+	
+	return SUCESSO;
 }
 
 /*-----------------------------------------------------------------------------
@@ -645,14 +706,13 @@ t_MBR readsMBR(){
 
 	unsigned char sectorBuffer[SECTOR_SIZE];
 	int teste = read_sector(0,sectorBuffer);
+	t_MBR mbr;
 
 	if( teste != 0 ){
 		printf("não leu\n");
-		return;
+		return mbr;
 	}
 	else {
-
-		t_MBR mbr;
 
 		short* versao = (short*) sectorBuffer;
 		mbr.versaoDisco = (int) *versao;
@@ -678,23 +738,21 @@ t_MBR readsMBR(){
 		mbr.SetorFinalParticao1 = *setorFimPart1;
 	//	printf("%d\n", mbr.SetorFinalParticao1);
 		return mbr;
-
-		}
+	}
 }
 
 t_SUPERBLOCO readsSuperblock(){
 
 	unsigned char sectorBuffer[SECTOR_SIZE];
 	int teste = read_sector(SUPERBLOCKSECTOR,sectorBuffer);
+	t_SUPERBLOCO superblock;
 	
 
 	if( teste != 0 ){
 		printf("não leu\n");
-		return;
+		return superblock;
 	}
-	else {
-
-		t_SUPERBLOCO superblock;
+	else {		
 
 		short* numblocos = (short*) sectorBuffer;
 		superblock.numBlocos = *numblocos;
@@ -707,7 +765,6 @@ t_SUPERBLOCO readsSuperblock(){
 
 		short* dirRaiz = (short*)(sectorBuffer+6);
 		superblock.blocoDirRaiz = *dirRaiz;
-
 		
 		int* bitmap1 = (int*)(sectorBuffer+8);
 		int* bitmap2 = (int*)(sectorBuffer+12);
@@ -725,9 +782,7 @@ t_SUPERBLOCO readsSuperblock(){
 		superblock.bitmap[4]= *bitmap5;
 		superblock.bitmap[5]= *bitmap6;
 		superblock.bitmap[6]= *bitmap7;
-		superblock.bitmap[7]= *bitmap8;
-
-		
+		superblock.bitmap[7]= *bitmap8;	
 
 		return superblock;
 	}
@@ -781,11 +836,13 @@ int initializeFAT(){
 void initializeEverything(){
 
 	int i;
-	
-	mbr = readsMBR();
-	
-	superbloco = readsSuperblock();
-	
+
+	if(initialized == 1){
+		return;
+	}		
+
+	mbr = readsMBR();	
+	superbloco = readsSuperblock();	
 
 	//Bitmap precisa de no minimo 256 bits = 32 bytes = 8 inteiros. Então ele é representado por 8
 	// inteiros no disco, que são lidos para, cada um, preencher 32 bits do bitmap. //CONFERIR
@@ -823,37 +880,33 @@ void initializeEverything(){
 	}*/
 	
 	diretorioAtual = raiz;
-	strcpy(caminhoAtual,"/\0");
+	strcpy(caminhoAtual, "/\0");
 
 	initialized=1;	//everything setup!
 	return;
-	
-
 }
 
 int initializeRoot(){
+	raiz = (t_entradaDir*) readBlock(superbloco.blocoDirRaiz);
 
-	raiz=malloc(tamBloco);
+	/*
 	int i;
 	BYTE sector[SECTOR_SIZE];
 	int dataSectorStart = superbloco.setoresPorBloco *superbloco.blocoDirRaiz; //CHECAR SE CONTA ESTÁ CERTA
-
 	for(i=0;i<superbloco.setoresPorBloco;i++){
-
 		int position = dataSectorStart + (superbloco.blocoDirRaiz * superbloco.setoresPorBloco);
 		if( read_sector(position+i,sector) != 0 ){
-
 			printf("Não gravou bloco\n");
 			return ERRO;
 		}
-
 		memcpy(raiz+ (entradasPorSet*i),sector,SECTOR_SIZE);
 	}
+	*/
 
+	raiz->fileType = FILETYPE_DIR;
 	bitmap[superbloco.blocoDirRaiz]=1;
 	//fat[superbloco.blocoDirRaiz] = 1;
 	return SUCESSO;
-
 }
 
 t_entradaDir* getLastDirectory(char* caminho){
@@ -892,7 +945,7 @@ t_entradaDir* getLastDirectory(char* caminho){
 		}
 		else{
 
-			while(strncpy(diretorio[i].name, tokenAtual, strlen(tokenAtual) ) !=0 && i<entradasPorDir){
+			while(strncmp(diretorio[i].name, tokenAtual, strlen(tokenAtual) ) !=0 && i<entradasPorDir){
 				i++;
 			}
 			achou=1;
@@ -920,8 +973,6 @@ t_entradaDir* getLastDirectory(char* caminho){
 	else{
 		return NULL;
 	}
-
-
 }
 
 int writeBlock(BYTE *buffer,int block, int raiz, int setoresPBloco){
@@ -965,11 +1016,12 @@ char * readBlock(int numBloco){
 
 char *fileName(char *caminho){
 	
-	char *nome = strdup(caminho); //duplica caminho recebido e guarda em nome
+	char *nome = (char*) malloc(sizeof(char) * strlen(caminho) + 1);
+	strncpy(nome, caminho, strlen(caminho) + 1); //duplica caminho recebido e guarda em nome
 	char *token = strtok(nome,"/");
 
 	while(token!=NULL){
-		nome=strdup(token);
+		strncpy(nome, token, strlen(token) + 1);
 		token=strtok(NULL,"/");
 
 		if(token==NULL){
@@ -979,7 +1031,6 @@ char *fileName(char *caminho){
 
 	free(nome);
 	return token;
-
 }
 
 int firstBitmapEmpty(){
@@ -1213,26 +1264,6 @@ int freeHandle(){
 	return ERRO;
 }
 
-char * read_cluster(int clusterNumber){
-    char* cluster = malloc(clusterSize);
-    BYTE readBuffer[SECTOR_SIZE];
-     int dataSectorStart = superbloco.setoresPorBloco *superbloco.blocoDirRaiz;
-
-    int i;
-    for (i = 0; i < superbloco.setoresPorBloco; i++) {
-        int adds = dataSectorStart + (clusterNumber *  superbloco.setoresPorBloco);
-        if (read_sector((adds + i), readBuffer) != 0) {
-          printf("Error reading cluster %d\n", (adds + i));
-          return NULL;
-        }
-        memcpy((cluster + (SECTOR_SIZE * i)), readBuffer, SECTOR_SIZE);
-    }
-
-    return cluster;
-}
-
-
-
 int write_cluster(BYTE *buffer, int clusterNumber) {
   int i;
   BYTE buffer_escrita[SECTOR_SIZE];
@@ -1280,8 +1311,6 @@ void consertar_caminho(char *path) {
   strcat(path, "/");
 }
 
-
-
 unsigned int criar_arquivo(char * filename, int fileType)
 {
     if (fileType < FILETYPE_DIR  || fileType > FILETYPE_LINK )   return ERRO; // tipo de arquvio inválido
@@ -1292,53 +1321,29 @@ unsigned int criar_arquivo(char * filename, int fileType)
 
     int i;
     for (i = 0; i < entradasPorDir; i++) {
-	    if (strncmp(nome, diret[i].name, strlen(nome)) == 0) return ERRO; // erro ao criar o arquivo
-	    }
+	    // erro ao criar o arquivo
+		if (strncmp(nome, diret[i].name, strlen(nome)) == 0) return ERRO; 	    
     }
 
     i = 0;
     while (diret[i].fileType != FILETYPE_INV ) {
     	i++;
     }
-    if (i > entradasPorDir) return ERRO; //diretório já está cheio
-
+    
+	if (i > entradasPorDir) return ERRO; //diretório já está cheio
     
     t_entradaDir arq_entrada;
     arq_entrada.fileType = (BYTE ) fileType;
     strcpy(arq_entrada.name, nome);
     
-    frecord.bytesFileSize = clusterSize;
-    frecord.clustersFileSize = 1;
-    arq_entrada.firstBlock = proxIndiceLivreNaFAT();
-    fat[arq_entrada.firstBlock] = FAT_EOF;
+    arq_entrada.fileSize = tamBloco;    
+    arq_entrada.firstBlock = firstBitmapEmpty();
+    fat[arq_entrada.firstBlock] = FEOF;
 
     diret[i] = arq_entrada; //escrever no disco
 
     if (writeFAT() !=  SUCESSO) return ERRO; // erro ao escrever na FAT
     if (write_cluster((BYTE *)diret, diret[0].firstBlock) != SUCESSO) return ERRO; 
 
-    return frecord.firstCluster;
-}
-
-
-DWORD proxIndiceLivreNaFAT() {
-    
-    short int completo = 0;
-    short int reset = 0;
-
-    DWORD start = indiceLivre_FAT;
-
-    while (fat[indiceLivre_FAT] != 0 && completo == 0)
-    {
-        if (indiceLivre_FAT == start && reset == 1) completo = 1;
-        if (indiceLivre_FAT == lastindex) {
-            indiceLivre_FAT = 0;
-            reset = 1;
-        }
-        indiceLivre_FAT += 1;
-    }
-    if (completo == 1) return ERRO;
-
-
-    return currentFreeFATIndex;
+    return arq_entrada.firstBlock;
 }
