@@ -229,7 +229,7 @@ FILE2 create2 (char *filename) {
 	}
 
 	printf("Arquivo criado corretamente!\n");
-	return SUCESSO;
+	return handle;
 
 
 }
@@ -280,7 +280,7 @@ FILE2 open2 (char *filename) {
 	openedFiles[handle] = arquivoAberto;
 	filesMap[handle] = 1;
 
-	return SUCESSO;
+	return handle;
 
 }
 
