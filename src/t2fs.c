@@ -835,8 +835,9 @@ void initializeEverything(){
 }
 
 int initializeRoot(){
+	raiz = (t_entradaDir*) readBlock(superbloco.blocoDirRaiz);
 
-	raiz=malloc(tamBloco);
+	/*
 	int i;
 	BYTE sector[SECTOR_SIZE];
 	int dataSectorStart = superbloco.setoresPorBloco *superbloco.blocoDirRaiz; //CHECAR SE CONTA ESTÁ CERTA
@@ -852,7 +853,9 @@ int initializeRoot(){
 
 		memcpy(raiz+ (entradasPorSet*i),sector,SECTOR_SIZE);
 	}
+	*/
 
+	raiz->fileType = FILETYPE_DIR;
 	bitmap[superbloco.blocoDirRaiz]=1;
 	//fat[superbloco.blocoDirRaiz] = 1;
 	return SUCESSO;
